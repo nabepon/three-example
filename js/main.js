@@ -30,7 +30,10 @@ const cube = new THREE.Mesh(geometry, material);
 group.add(cube);
 
 // image作成、Textureとして指定
-const textureImage = await createTextureImage({ path: './assets/image.jpg' })
+const textureImage = await createTextureImage({
+  path: './assets/image.jpg',
+  label: 'Hello, World!'
+})
 const imageTexture = new THREE.Texture(textureImage);
 imageTexture.needsUpdate = true; 
 const imageMaterial = new THREE.SpriteMaterial( { map: imageTexture, color: 0xffffff } );
