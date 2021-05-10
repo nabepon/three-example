@@ -36,12 +36,7 @@ export const createTextureImage = async ({ path, label }) => {
   const cacheCanvas = cache.texture[cacheKey];
   if(cacheCanvas) {
     // cacheをコピーして返す、そのまま返すとthreeでエラーになる
-    const canvas = document.createElement('canvas');
-    canvas.width = CANVAS_SIZE;
-    canvas.height = CANVAS_SIZE;
-    const image = cacheCanvas.getContext('2d').getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-    canvas.getContext('2d').putImageData(image, 0, 0);
-    return canvas;
+    return cloneCanvas(cacheCanvas);
   }
 
   const [clippedImage, iconImage, labelImage] = await Promise.all([
@@ -51,7 +46,7 @@ export const createTextureImage = async ({ path, label }) => {
   ]);
 
   const canvas = document.createElement('canvas');
-  document.querySelector('#canvasContainer').appendChild(canvas);
+  document.querySelector('#createdCanvasThumb').appendChild(canvas);
   canvas.width = CANVAS_SIZE;
   canvas.height = CANVAS_SIZE;
   const ctx = canvas.getContext('2d');
@@ -68,10 +63,19 @@ export const createTextureImage = async ({ path, label }) => {
   return canvas;
 }
 
+const cloneCanvas = (_canvas) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = _canvas.width;
+  canvas.height = _canvas.height;
+  const image = _canvas.getContext('2d').getImageData(0, 0, _canvas.width, _canvas.height);
+  canvas.getContext('2d').putImageData(image, 0, 0);
+  return canvas;
+}
+
 /**
  * テキスト描画
  */
-export const createLabel = ({ label }) => {
+const createLabel = ({ label }) => {
   if(cache.label[label]) {
     return cache.label[label];
   }
@@ -117,7 +121,7 @@ export const createLabel = ({ label }) => {
 /**
  * icon画像を読み込む
  */
-export const loadIconImage = async () => {
+const loadIconImage = async () => {
   if(cache.icon.element) {
     return cache.icon.element;
   }
@@ -133,7 +137,7 @@ export const loadIconImage = async () => {
 /**
  * 画像を読み込み、円状にclipしたcanvasを作成する
  */
-export const loadClipImage = async ({ path }) => {
+const loadClipImage = async ({ path }) => {
   if(cache.image[path]) {
     return cache.image[path];
   }
@@ -147,7 +151,7 @@ export const loadClipImage = async ({ path }) => {
   canvas.height = CLIP_IMG_SIZE;
 
   // プレビュー用にdomに追加
-  document.querySelector('#clipImageContainer').appendChild(canvas);
+  document.querySelector('#createdCanvasThumb').appendChild(canvas);
 
   // 円状にclip
   ctx.fillStyle = "rgba(150, 150, 200, 0.3)";
