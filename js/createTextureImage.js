@@ -18,6 +18,8 @@ const CLIP_IMG_SIZE = ICON.WIDTH;
 
 /**
  * cache
+ * Promiseをcacheとして入れることで、
+ * cache生成前に次のアクセスがきた場合もcacheにヒットできる
  */
 const cache = {};
 const resetCache = () => {
@@ -36,31 +38,34 @@ export const createTextureImage = async ({ path, label }) => {
   const cacheCanvas = cache.texture[cacheKey];
   if(cacheCanvas) {
     // cacheをコピーして返す、そのまま返すとthreeでエラーになる
-    return cloneCanvas(cacheCanvas);
+    return cloneCanvas(await cacheCanvas);
   }
 
-  const [clippedImage, iconImage, labelImage] = await Promise.all([
-    loadClipImage({ path }),
-    loadIconImage(),
-    createLabel({ label }),
-  ]);
+  cache.texture[cacheKey] = new Promise(async resolve => {
+    const [clippedImage, iconImage, labelImage] = await Promise.all([
+      loadClipImage({ path }),
+      loadIconImage(),
+      createLabel({ label }),
+    ]);
 
-  const canvas = document.createElement('canvas');
-  document.querySelector('#createdCanvasThumb').appendChild(canvas);
-  canvas.width = CANVAS_SIZE;
-  canvas.height = CANVAS_SIZE;
-  const ctx = canvas.getContext('2d');
+    const canvas = document.createElement('canvas');
+    document.querySelector('#createdCanvasThumb').appendChild(canvas);
+    canvas.width = CANVAS_SIZE;
+    canvas.height = CANVAS_SIZE;
+    const ctx = canvas.getContext('2d');
 
-  // 画像描画
-  ctx.fillStyle = "rgba(150, 150, 200, 0.3)";
-  ctx.fillRect(0,0, CANVAS_SIZE, CANVAS_SIZE);
-  // SVGのdrawImageは何か変、sw, shの基準がcanvas？描画は矩形で配置は画像の比率で行うとうまくいく
-  ctx.drawImage(iconImage, 0, 0, CANVAS_SIZE, CANVAS_SIZE, CANVAS_SIZE/2 - ICON.WIDTH/2, CANVAS_SIZE - ICON.SIZE, ICON.SIZE, ICON.SIZE);
-  ctx.drawImage(clippedImage, 0, 0, clippedImage.width, clippedImage.height, CANVAS_SIZE/2 - ICON.WIDTH/2, CANVAS_SIZE - ICON.SIZE, CLIP_IMG_SIZE, CLIP_IMG_SIZE);
-  ctx.drawImage(labelImage, 0, 0, LABEL.WIDTH, LABEL.HEIGHT, (CANVAS_SIZE - LABEL.WIDTH)/2, CANVAS_SIZE - ICON.SIZE - LABEL.HEIGHT, LABEL.WIDTH, LABEL.HEIGHT);
+    // 画像描画
+    ctx.fillStyle = "rgba(150, 150, 200, 0.3)";
+    ctx.fillRect(0,0, CANVAS_SIZE, CANVAS_SIZE);
+    // SVGのdrawImageは何か変、sw, shの基準がcanvas？描画は矩形で配置は画像の比率で行うとうまくいく
+    ctx.drawImage(iconImage, 0, 0, CANVAS_SIZE, CANVAS_SIZE, CANVAS_SIZE/2 - ICON.WIDTH/2, CANVAS_SIZE - ICON.SIZE, ICON.SIZE, ICON.SIZE);
+    ctx.drawImage(clippedImage, 0, 0, clippedImage.width, clippedImage.height, CANVAS_SIZE/2 - ICON.WIDTH/2, CANVAS_SIZE - ICON.SIZE, CLIP_IMG_SIZE, CLIP_IMG_SIZE);
+    ctx.drawImage(labelImage, 0, 0, LABEL.WIDTH, LABEL.HEIGHT, (CANVAS_SIZE - LABEL.WIDTH)/2, CANVAS_SIZE - ICON.SIZE - LABEL.HEIGHT, LABEL.WIDTH, LABEL.HEIGHT);
 
-  cache.texture[cacheKey] = canvas;
-  return canvas;
+    cache.texture[cacheKey] = canvas;
+    resolve(canvas);
+  });
+  return cache.texture[cacheKey];
 }
 
 const cloneCanvas = (_canvas) => {
@@ -80,42 +85,43 @@ const createLabel = ({ label }) => {
     return cache.label[label];
   }
 
-  const canvas = document.createElement('canvas');
-  canvas.width = LABEL.WIDTH;
-  canvas.height = LABEL.HEIGHT;
-  const ctx = canvas.getContext('2d');
-  ctx.font = LABEL.FONT_SIZE + 'px Arial';
-  ctx.fillStyle = '#fff';
+  cache.label[label] = new Promise(resolve => {
+    const canvas = document.createElement('canvas');
+    canvas.width = LABEL.WIDTH;
+    canvas.height = LABEL.HEIGHT;
+    const ctx = canvas.getContext('2d');
+    ctx.font = LABEL.FONT_SIZE + 'px Arial';
+    ctx.fillStyle = '#fff';
 
-  // 改行しないバージョン
-  // const textWidth = ctx.measureText(label).width;
-  // ctx.fillText(label, (LABEL.WIDTH - textWidth)/2, LABEL.HEIGHT);
+    // 改行しないバージョン
+    // const textWidth = ctx.measureText(label).width;
+    // ctx.fillText(label, (LABEL.WIDTH - textWidth)/2, LABEL.HEIGHT);
 
-  // TODO: リファクタ
-  const wrapText = (context, label, maxWidth) => {
-    context.textAlign = "center";
-    const words = label.split('');
-    let line = '';
-    let y = LABEL.FONT_SIZE;
+    // TODO: リファクタ
+    const wrapText = (context, label, maxWidth) => {
+      context.textAlign = "center";
+      const words = label.split('');
+      let line = '';
+      let y = LABEL.FONT_SIZE;
 
-    for(let n = 0; n < words.length; n++) {
-      let testLine = line + words[n];
-      const testWidth = context.measureText(testLine).width;
-      if (testWidth > maxWidth && n > 0) {
-        context.fillText(line, maxWidth/2, y);
-        line = words[n];
-        y += LABEL.FONT_SIZE;
-      } else {
-        line = testLine;
+      for(let n = 0; n < words.length; n++) {
+        let testLine = line + words[n];
+        const testWidth = context.measureText(testLine).width;
+        if (testWidth > maxWidth && n > 0) {
+          context.fillText(line, maxWidth/2, y);
+          line = words[n];
+          y += LABEL.FONT_SIZE;
+        } else {
+          line = testLine;
+        }
       }
+      context.fillText(line, maxWidth/2, y);
     }
-    context.fillText(line, maxWidth/2, y);
-  }
 
-  wrapText(ctx, label, LABEL.WIDTH);
-
-  cache.label[label] = canvas;
-  return canvas
+    wrapText(ctx, label, LABEL.WIDTH);
+    resolve(canvas);
+  });
+  return cache.label[label]
 }
 
 /**
@@ -126,12 +132,15 @@ const loadIconImage = async () => {
     return cache.icon.element;
   }
 
-  const iconEl = new Image();
-  iconEl.src = "./assets/icon.svg";
-  await new Promise(r => iconEl.addEventListener("load", r, { once: true }));
+  cache.icon.element = new Promise(async resolve => {
+    const iconEl = new Image();
+    iconEl.src = "./assets/icon.svg";
+    await new Promise(r => iconEl.addEventListener("load", r, { once: true }));
 
-  cache.icon.element = iconEl;
-  return iconEl
+    cache.icon.element = iconEl;
+    resolve(iconEl);
+  });
+  return cache.icon.element;
 }
 
 /**
@@ -142,33 +151,35 @@ const loadClipImage = async ({ path }) => {
     return cache.image[path];
   }
 
-  // canvas作成
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
+  cache.image[path] = new Promise(async resolve => {
+    // canvas作成
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
 
-  // サイズ設定
-  canvas.width = CLIP_IMG_SIZE;
-  canvas.height = CLIP_IMG_SIZE;
+    // サイズ設定
+    canvas.width = CLIP_IMG_SIZE;
+    canvas.height = CLIP_IMG_SIZE;
 
-  // プレビュー用にdomに追加
-  document.querySelector('#createdCanvasThumb').appendChild(canvas);
+    // プレビュー用にdomに追加
+    document.querySelector('#createdCanvasThumb').appendChild(canvas);
 
-  // 円状にclip
-  ctx.fillStyle = "rgba(150, 150, 200, 0.3)";
-  ctx.fillRect(0,0, CLIP_IMG_SIZE, CLIP_IMG_SIZE)
-  ctx.beginPath();
-  ctx.arc(CLIP_IMG_SIZE/2, CLIP_IMG_SIZE/2, CLIP_IMG_SIZE/2, 0, Math.PI*2, false);
-  ctx.clip();
+    // 円状にclip
+    ctx.fillStyle = "rgba(150, 150, 200, 0.3)";
+    ctx.fillRect(0,0, CLIP_IMG_SIZE, CLIP_IMG_SIZE)
+    ctx.beginPath();
+    ctx.arc(CLIP_IMG_SIZE/2, CLIP_IMG_SIZE/2, CLIP_IMG_SIZE/2, 0, Math.PI*2, false);
+    ctx.clip();
 
-  // 画像読み込み
-  const imgEl = new Image();
-  imgEl.src = path;
-  await new Promise(r => imgEl.addEventListener("load", r, { once: true }));
-  // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
-  // sx, sy, sWidth, sHeight -> 取得した画像のどの部分を使うか
-  // dx, dy, dWidth, dHeight ->　その画像をどの位置にどの大きさで配置するか
-  ctx.drawImage(imgEl, 0, 0, imgEl.width, imgEl.height, 0, 0, CLIP_IMG_SIZE, CLIP_IMG_SIZE);
+    // 画像読み込み
+    const imgEl = new Image();
+    imgEl.src = path;
+    await new Promise(r => imgEl.addEventListener("load", r, { once: true }));
+    // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+    // sx, sy, sWidth, sHeight -> 取得した画像のどの部分を使うか
+    // dx, dy, dWidth, dHeight ->　その画像をどの位置にどの大きさで配置するか
+    ctx.drawImage(imgEl, 0, 0, imgEl.width, imgEl.height, 0, 0, CLIP_IMG_SIZE, CLIP_IMG_SIZE);
 
-  cache.image[path] = canvas;
-  return canvas;
+    resolve(canvas);
+  });
+  return cache.image[path];
 }
