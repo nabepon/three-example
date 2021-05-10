@@ -16,12 +16,34 @@ const LABEL = {
 
 const CLIP_IMG_SIZE = ICON.WIDTH;
 
+/**
+ * cache
+ */
+const cache = {};
+const resetCache = () => {
+  cache.texture = {};
+  cache.label = {};
+  cache.image = {};
+  cache.icon = {};
+}
+resetCache();
 
 /**
  * 画像を合成したcanvasを作成
- * TODO: キャッシュ機能
  */
 export const createTextureImage = async ({ path, label }) => {
+  const cacheKey = path　+ '?label=' + label
+  const cacheCanvas = cache.texture[cacheKey];
+  if(cacheCanvas) {
+    // cacheをコピーして返す、そのまま返すとthreeでエラーになる
+    const canvas = document.createElement('canvas');
+    canvas.width = CANVAS_SIZE;
+    canvas.height = CANVAS_SIZE;
+    const image = cacheCanvas.getContext('2d').getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    canvas.getContext('2d').putImageData(image, 0, 0);
+    return canvas;
+  }
+
   const [clippedImage, iconImage, labelImage] = await Promise.all([
     loadClipImage({ path }),
     loadIconImage(),
@@ -42,13 +64,18 @@ export const createTextureImage = async ({ path, label }) => {
   ctx.drawImage(clippedImage, 0, 0, clippedImage.width, clippedImage.height, CANVAS_SIZE/2 - ICON.WIDTH/2, CANVAS_SIZE - ICON.SIZE, CLIP_IMG_SIZE, CLIP_IMG_SIZE);
   ctx.drawImage(labelImage, 0, 0, LABEL.WIDTH, LABEL.HEIGHT, (CANVAS_SIZE - LABEL.WIDTH)/2, CANVAS_SIZE - ICON.SIZE - LABEL.HEIGHT, LABEL.WIDTH, LABEL.HEIGHT);
 
-  return canvas
+  cache.texture[cacheKey] = canvas;
+  return canvas;
 }
 
 /**
  * テキスト描画
  */
 export const createLabel = ({ label }) => {
+  if(cache.label[label]) {
+    return cache.label[label];
+  }
+
   const canvas = document.createElement('canvas');
   canvas.width = LABEL.WIDTH;
   canvas.height = LABEL.HEIGHT;
@@ -83,6 +110,7 @@ export const createLabel = ({ label }) => {
 
   wrapText(ctx, label, LABEL.WIDTH);
 
+  cache.label[label] = canvas;
   return canvas
 }
 
@@ -90,9 +118,15 @@ export const createLabel = ({ label }) => {
  * icon画像を読み込む
  */
 export const loadIconImage = async () => {
+  if(cache.icon.element) {
+    return cache.icon.element;
+  }
+
   const iconEl = new Image();
   iconEl.src = "./assets/icon.svg";
   await new Promise(r => iconEl.addEventListener("load", r, { once: true }));
+
+  cache.icon.element = iconEl;
   return iconEl
 }
 
@@ -100,6 +134,10 @@ export const loadIconImage = async () => {
  * 画像を読み込み、円状にclipしたcanvasを作成する
  */
 export const loadClipImage = async ({ path }) => {
+  if(cache.image[path]) {
+    return cache.image[path];
+  }
+
   // canvas作成
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -127,5 +165,6 @@ export const loadClipImage = async ({ path }) => {
   // dx, dy, dWidth, dHeight ->　その画像をどの位置にどの大きさで配置するか
   ctx.drawImage(imgEl, 0, 0, imgEl.width, imgEl.height, 0, 0, CLIP_IMG_SIZE, CLIP_IMG_SIZE);
 
+  cache.image[path] = canvas;
   return canvas;
 }

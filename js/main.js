@@ -29,16 +29,28 @@ const material = new THREE.MeshPhongMaterial({color: 0x44aa88});
 const cube = new THREE.Mesh(geometry, material);
 group.add(cube);
 
-// image作成、Textureとして指定
-const textureImage = await createTextureImage({
+const dataList = [{
   path: './assets/image.jpg',
-  label: 'qwypgj, Hello, World! qwypgj,'
-})
-const imageTexture = new THREE.Texture(textureImage);
-imageTexture.needsUpdate = true; 
-const imageMaterial = new THREE.SpriteMaterial( { map: imageTexture, color: 0xffffff } );
-const imageSprite = new THREE.Sprite( imageMaterial );
-imageSprite.scale.set(1, 1, 1);
-imageSprite.position.set(0, 0.75, 0); // zを上げればmeshより手前に持ってこれるが...
-group.add( imageSprite );
-
+  label: 'qwypgj, Hello, World! qwypgj,',
+  x: 0,
+}, {
+  path: './assets/image.jpg',
+  label: 'Hello, World!',
+  x: 1,
+}, {
+  path: './assets/image.jpg',
+  label: 'Hello, World!',
+  x: -1,
+}];
+// FIXME: forEachなどでやるとawaitされずcacheが効かない
+for (const data of dataList) {
+  // image作成、Textureとして指定
+  const textureImage = await createTextureImage({path: data.path, label: data.label});
+  const imageTexture = new THREE.Texture(textureImage);
+  imageTexture.needsUpdate = true;
+  const imageMaterial = new THREE.SpriteMaterial( { map: imageTexture, color: 0xffffff } );
+  const imageSprite = new THREE.Sprite( imageMaterial );
+  imageSprite.scale.set(1, 1, 1);
+  imageSprite.position.set(data.x, 0.75, 0); // zを上げればmeshより手前に持ってこれるが...
+  group.add( imageSprite );
+}
