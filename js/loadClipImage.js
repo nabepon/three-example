@@ -1,4 +1,7 @@
-export const createClipImage = async ({ path }) => {
+/**
+ * 画像を読み込み、円状にclipしたcanvasを作成する
+ */
+export const loadClipImage = async ({ path }) => {
   // canvas作成
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
@@ -11,6 +14,8 @@ export const createClipImage = async ({ path }) => {
   document.querySelector('#clipImageContainer').appendChild(canvas);
 
   // 円状にclip
+  ctx.fillStyle = "rgba(150, 150, 200, 0.3)";
+  ctx.fillRect(0,0,350,350);
   ctx.beginPath();
   ctx.arc(175, 175, 175, 0, Math.PI*2, false);
   ctx.clip();

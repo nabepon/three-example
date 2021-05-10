@@ -1,3 +1,6 @@
+/**
+ * threeを描画するための定型文
+ */
 export const start = (scene,camera,renderer)=>{
   const resizeRendererToDisplaySize = ()=>{
     const canvas = renderer.domElement;
