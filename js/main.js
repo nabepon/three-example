@@ -32,7 +32,7 @@ group.add(cube);
 // image作成、Textureとして指定
 const textureImage = await createTextureImage({
   path: './assets/image.jpg',
-  label: 'Hello, World!'
+  label: 'qwypgj, Hello, World! qwypgj,'
 })
 const imageTexture = new THREE.Texture(textureImage);
 imageTexture.needsUpdate = true; 
