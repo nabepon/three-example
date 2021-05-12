@@ -8,10 +8,12 @@ const ICON = {
 };
 
 const FONT_SIZE = 35;
+const LABEL_MARGIN = 20;
 const LABEL = {
   WIDTH: 250,
-  HEIGHT: FONT_SIZE * 2 + 10, // qやyの下が見切れるので遊びを10入れる
-  FONT_SIZE: FONT_SIZE,
+  HEIGHT: FONT_SIZE * 2 + LABEL_MARGIN, // qやyの下が見切れるので遊びを10入れる
+  FONT_SIZE,
+  MARGIN: LABEL_MARGIN,
 }
 
 const CLIP_IMG_SIZE = ICON.WIDTH;
@@ -41,29 +43,30 @@ export const createTextureImage = async ({ path, label }) => {
     return cloneCanvas(await cacheCanvas);
   }
 
-  cache.texture[cacheKey] = new Promise(async resolve => {
-    const [clippedImage, iconImage, labelImage] = await Promise.all([
-      loadClipImage({ path }),
-      loadIconImage(),
-      createLabel({ label }),
-    ]);
+  cache.texture[cacheKey] = new Promise(resolve => {
+    (async () => {
+      const [clippedImage, iconImage, labelImage] = await Promise.all([
+        loadClipImage({ path }),
+        loadIconImage(),
+        createLabel({ label }),
+      ]);
 
-    const canvas = document.createElement('canvas');
-    document.querySelector('#createdCanvasThumb').appendChild(canvas);
-    canvas.width = CANVAS_SIZE;
-    canvas.height = CANVAS_SIZE;
-    const ctx = canvas.getContext('2d');
+      const canvas = document.createElement('canvas');
+      document.querySelector('#createdCanvasThumb').appendChild(canvas);
+      canvas.width = CANVAS_SIZE;
+      canvas.height = CANVAS_SIZE;
+      const ctx = canvas.getContext('2d');
 
-    // 画像描画
-    ctx.fillStyle = "rgba(150, 150, 200, 0.3)";
-    ctx.fillRect(0,0, CANVAS_SIZE, CANVAS_SIZE);
-    // SVGのdrawImageは何か変、sw, shの基準がcanvas？描画は矩形で配置は画像の比率で行うとうまくいく
-    ctx.drawImage(iconImage, 0, 0, CANVAS_SIZE, CANVAS_SIZE, CANVAS_SIZE/2 - ICON.WIDTH/2, CANVAS_SIZE - ICON.SIZE, ICON.SIZE, ICON.SIZE);
-    ctx.drawImage(clippedImage, 0, 0, clippedImage.width, clippedImage.height, CANVAS_SIZE/2 - ICON.WIDTH/2, CANVAS_SIZE - ICON.SIZE, CLIP_IMG_SIZE, CLIP_IMG_SIZE);
-    ctx.drawImage(labelImage, 0, 0, LABEL.WIDTH, LABEL.HEIGHT, (CANVAS_SIZE - LABEL.WIDTH)/2, CANVAS_SIZE - ICON.SIZE - LABEL.HEIGHT, LABEL.WIDTH, LABEL.HEIGHT);
+      // 画像描画
+      ctx.fillStyle = "rgba(150, 150, 200, 0.3)";
+      ctx.fillRect(0,0, CANVAS_SIZE, CANVAS_SIZE);
+      // SVGのdrawImageは何か変、sw, shの基準がcanvas？描画は矩形で配置は画像の比率で行うとうまくいく
+      ctx.drawImage(iconImage, 0, 0, CANVAS_SIZE, CANVAS_SIZE, CANVAS_SIZE/2 - ICON.WIDTH/2, CANVAS_SIZE - ICON.SIZE, ICON.SIZE, ICON.SIZE);
+      ctx.drawImage(clippedImage, 0, 0, clippedImage.width, clippedImage.height, CANVAS_SIZE/2 - ICON.WIDTH/2, CANVAS_SIZE - ICON.SIZE, CLIP_IMG_SIZE, CLIP_IMG_SIZE);
+      ctx.drawImage(labelImage, 0, 0, LABEL.WIDTH, LABEL.HEIGHT, (CANVAS_SIZE - LABEL.WIDTH)/2, CANVAS_SIZE - ICON.SIZE - LABEL.HEIGHT, LABEL.WIDTH, LABEL.HEIGHT);
 
-    cache.texture[cacheKey] = canvas;
-    resolve(canvas);
+      resolve(canvas);
+    })()
   });
   return cache.texture[cacheKey];
 }
@@ -97,25 +100,24 @@ const createLabel = ({ label }) => {
     // const textWidth = ctx.measureText(label).width;
     // ctx.fillText(label, (LABEL.WIDTH - textWidth)/2, LABEL.HEIGHT);
 
-    // TODO: リファクタ
-    const wrapText = (context, label, maxWidth) => {
-      context.textAlign = "center";
-      const words = label.split('');
+    const wrapText = (ctx, label, maxWidth) => {
+      ctx.textAlign = "center";
       let line = '';
-      let y = LABEL.FONT_SIZE;
-
-      for(let n = 0; n < words.length; n++) {
-        let testLine = line + words[n];
-        const testWidth = context.measureText(testLine).width;
-        if (testWidth > maxWidth && n > 0) {
-          context.fillText(line, maxWidth/2, y);
-          line = words[n];
-          y += LABEL.FONT_SIZE;
+      const lines = [];
+      label.split('').forEach((char, index) => {
+        let testLine = line + char;
+        const testWidth = ctx.measureText(testLine).width;
+        if (testWidth > maxWidth && index > 0) {
+          lines.push(line);
+          line = char;
         } else {
           line = testLine;
         }
-      }
-      context.fillText(line, maxWidth/2, y);
+      })
+      lines.push(line);
+      lines.forEach((line, index) => {
+        ctx.fillText(line, maxWidth/2, LABEL.HEIGHT - LABEL.MARGIN - LABEL.FONT_SIZE * index);
+      })
     }
 
     wrapText(ctx, label, LABEL.WIDTH);
@@ -136,8 +138,6 @@ const loadIconImage = async () => {
     const iconEl = new Image();
     iconEl.src = "./assets/icon.svg";
     await new Promise(r => iconEl.addEventListener("load", r, { once: true }));
-
-    cache.icon.element = iconEl;
     resolve(iconEl);
   });
   return cache.icon.element;
@@ -151,35 +151,39 @@ const loadClipImage = async ({ path }) => {
     return cache.image[path];
   }
 
-  cache.image[path] = new Promise(async resolve => {
-    // canvas作成
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+  cache.image[path] = new Promise(resolve => {
+    (async () => {
+      // 画像読み込み
+      const imgEl = new Image();
+      imgEl.src = path;
+      await new Promise(r => imgEl.addEventListener("load", r, { once: true }));
 
-    // サイズ設定
-    canvas.width = CLIP_IMG_SIZE;
-    canvas.height = CLIP_IMG_SIZE;
+      // canvas作成
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
 
-    // プレビュー用にdomに追加
-    document.querySelector('#createdCanvasThumb').appendChild(canvas);
+      // サイズ設定
+      canvas.width = CLIP_IMG_SIZE;
+      canvas.height = CLIP_IMG_SIZE;
 
-    // 円状にclip
-    ctx.fillStyle = "rgba(150, 150, 200, 0.3)";
-    ctx.fillRect(0,0, CLIP_IMG_SIZE, CLIP_IMG_SIZE)
-    ctx.beginPath();
-    ctx.arc(CLIP_IMG_SIZE/2, CLIP_IMG_SIZE/2, CLIP_IMG_SIZE/2, 0, Math.PI*2, false);
-    ctx.clip();
+      // プレビュー用にdomに追加
+      document.querySelector('#createdCanvasThumb').appendChild(canvas);
 
-    // 画像読み込み
-    const imgEl = new Image();
-    imgEl.src = path;
-    await new Promise(r => imgEl.addEventListener("load", r, { once: true }));
-    // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
-    // sx, sy, sWidth, sHeight -> 取得した画像のどの部分を使うか
-    // dx, dy, dWidth, dHeight ->　その画像をどの位置にどの大きさで配置するか
-    ctx.drawImage(imgEl, 0, 0, imgEl.width, imgEl.height, 0, 0, CLIP_IMG_SIZE, CLIP_IMG_SIZE);
+      // 円状にclip
+      ctx.fillStyle = "rgba(150, 150, 200, 0.3)";
+      ctx.fillRect(0,0, canvas.width, CLIP_IMG_SIZE)
+      ctx.beginPath();
+      ctx.arc(CLIP_IMG_SIZE/2, CLIP_IMG_SIZE/2, CLIP_IMG_SIZE/2, 0, Math.PI*2, false);
+      ctx.clip();
+      // drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+      // sx, sy, sWidth, sHeight -> 取得した画像のどの部分を使うか
+      // dx, dy, dWidth, dHeight ->　その画像をどの位置にどの大きさで配置するか
+      const renderHeight = CLIP_IMG_SIZE;
+      const renderWidth = (imgEl.width / imgEl.height) * renderHeight;
+      ctx.drawImage(imgEl, 0, 0, imgEl.width, imgEl.height, (CLIP_IMG_SIZE - renderWidth) / 2, 0, renderWidth, renderHeight);
 
-    resolve(canvas);
+      resolve(canvas);
+    })()
   });
   return cache.image[path];
 }
